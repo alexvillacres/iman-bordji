@@ -1,0 +1,8 @@
+{
+    "name": "iman-bordji",
+    "private": true,
+    "scripts": {
+      "dev": "pnpm --filter web dev",
+      "studio": "pnpm --filter studio dev"
+    }
+  }

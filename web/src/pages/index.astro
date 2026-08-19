@@ -1,0 +1,354 @@
+---
+import "../styles/global.css";
+import { client, urlFor } from "../lib/sanity";
+
+type HomeImage = {
+    alt?: string;
+    asset?: {
+        _id: string;
+        metadata?: {
+            lqip?: string;
+            dimensions?: {
+                width?: number;
+                height?: number;
+            };
+        };
+    };
+    crop?: unknown;
+    hotspot?: unknown;
+};
+
+type GallerySource =
+    | {
+          type: "sanity";
+          image: HomeImage;
+      }
+    | {
+          type: "fallback";
+          src: string;
+      };
+
+type LayoutSlot = {
+    width: number;
+    className: string;
+};
+
+type RenderedImage = {
+    src: string;
+    alt: string;
+    className: string;
+};
+
+type PairSection = {
+    type: "pair";
+    className: string;
+    images: RenderedImage[];
+};
+
+type ColumnSection = {
+    type: "columns";
+    leftImages: RenderedImage[];
+    rightImages: RenderedImage[];
+};
+
+const fallbackSources: GallerySource[] = Array.from(
+    { length: 13 },
+    (_, index) => ({
+        type: "fallback",
+        src: `/images/portrait-${String(index + 1).padStart(2, "0")}.jpg`,
+    }),
+);
+
+const heroSlot: LayoutSlot = {
+    width: 944,
+    className: "h-auto w-[min(472px,82vw)]",
+};
+
+const layoutCycle: Array<
+    | {
+          type: "pair";
+          className: string;
+          slots: LayoutSlot[];
+      }
+    | {
+          type: "columns";
+          slots: LayoutSlot[];
+      }
+> = [
+    {
+        type: "pair",
+        className:
+            "flex flex-col items-start gap-20 md:flex-row md:justify-center md:gap-40",
+        slots: [
+            {
+                width: 944,
+                className: "h-auto w-[min(472px,82vw)]",
+            },
+            {
+                width: 1088,
+                className: "h-auto w-[min(544px,82vw)] self-end md:mt-24",
+            },
+        ],
+    },
+    {
+        type: "pair",
+        className:
+            "flex flex-col items-start gap-20 md:flex-row md:justify-center md:gap-40",
+        slots: [
+            {
+                width: 1248,
+                className: "h-auto w-[min(624px,88vw)]",
+            },
+            {
+                width: 752,
+                className: "h-auto w-[min(376px,72vw)] self-end md:mt-20",
+            },
+        ],
+    },
+    {
+        type: "pair",
+        className:
+            "flex flex-col items-start gap-20 md:flex-row md:justify-center md:gap-32",
+        slots: [
+            {
+                width: 752,
+                className: "h-auto w-[min(376px,72vw)] md:mt-20",
+            },
+            {
+                width: 1248,
+                className: "h-auto w-[min(624px,88vw)] self-end",
+            },
+        ],
+    },
+    {
+        type: "columns",
+        slots: [
+            {
+                width: 1088,
+                className: "h-auto w-[min(544px,84vw)]",
+            },
+            {
+                width: 944,
+                className: "h-auto w-[min(472px,82vw)]",
+            },
+            {
+                width: 1088,
+                className: "h-auto w-[min(544px,84vw)]",
+            },
+            {
+                width: 944,
+                className: "h-auto w-[min(472px,82vw)]",
+            },
+            {
+                width: 1088,
+                className: "h-auto w-[min(544px,84vw)]",
+            },
+            {
+                width: 1088,
+                className: "h-auto w-[min(544px,84vw)]",
+            },
+        ],
+    },
+];
+
+const homePage = await client
+    .fetch<{ images?: HomeImage[] } | null>(
+        `*[_type == "homePage"][0]{
+        images[]{
+            alt,
+            crop,
+            hotspot,
+            asset->{
+                _id,
+                metadata {
+                    lqip,
+                    dimensions {width, height}
+                }
+            }
+        }
+    }`,
+    )
+    .catch(() => null);
+
+const sanityImages = homePage?.images?.filter((image) => image?.asset) ?? [];
+const gallerySources: GallerySource[] = sanityImages.length
+    ? sanityImages.map((image) => ({ type: "sanity", image }))
+    : fallbackSources;
+
+function imageFor(source: GallerySource, slot: LayoutSlot): RenderedImage {
+    if (source.type === "fallback") {
+        return {
+            src: source.src,
+            alt: "",
+            className: slot.className,
+        };
+    }
+
+    return {
+        src: urlFor(source.image)
+            .width(slot.width)
+            .fit("max")
+            .auto("format")
+            .url(),
+        alt: source.image.alt ?? "",
+        className: slot.className,
+    };
+}
+
+const heroImage = gallerySources[0]
+    ? imageFor(gallerySources[0], heroSlot)
+    : null;
+
+const sections: Array<PairSection | ColumnSection> = [];
+let sourceIndex = 1;
+let cycleIndex = 0;
+
+while (sourceIndex < gallerySources.length) {
+    const sectionLayout = layoutCycle[cycleIndex % layoutCycle.length];
+    const sources = gallerySources.slice(
+        sourceIndex,
+        sourceIndex + sectionLayout.slots.length,
+    );
+    const images = sources.map((source, index) =>
+        imageFor(source, sectionLayout.slots[index]),
+    );
+
+    if (sectionLayout.type === "columns") {
+        sections.push({
+            type: "columns",
+            leftImages: images.slice(0, 3),
+            rightImages: images.slice(3),
+        });
+    } else {
+        sections.push({
+            type: "pair",
+            className: sectionLayout.className,
+            images,
+        });
+    }
+
+    sourceIndex += sectionLayout.slots.length;
+    cycleIndex += 1;
+}
+---
+
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Iman Bordji</title>
+        <script src="https://cdn.tailwindcss.com"></script>
+    </head>
+
+    <body class="bg-white text-black antialiased">
+        <header
+            class="fixed left-6 right-6 top-6 z-50 flex items-center justify-between leading-none"
+        >
+            <div class="text-lg font-medium">Iman Bordji</div>
+            <div class="relative flex flex-col items-end">
+                <button
+                    type="button"
+                    data-contact-copy
+                    data-email="iman.bordji@gmail.com"
+                    class="appearance-none cursor-pointer bg-transparent p-0 text-lg font-medium leading-none transition-colors ease-out hover:text-black/60"
+                >
+                    Contact
+                </button>
+                <div
+                    data-contact-status
+                    class="pointer-events-none absolute right-full top-1/2 mr-3 -translate-y-1/2 whitespace-nowrap rounded-sm border border-zinc-200 bg-zinc-100 px-1.5 py-0.5 text-sm font-medium text-zinc-600 opacity-0 transition-opacity duration-200"
+                    role="status"
+                    aria-live="polite"
+                >
+                    Email copied
+                </div>
+            </div>
+        </header>
+
+        <main
+            class="mx-auto flex w-full max-w-360 flex-col gap-32 px-6 pb-32 pt-32 md:gap-44 md:px-20 md:pt-40"
+        >
+            {
+                heroImage && (
+                    <section class="flex justify-center">
+                        <img
+                            src={heroImage.src}
+                            alt={heroImage.alt}
+                            class={heroImage.className}
+                        />
+                    </section>
+                )
+            }
+
+            {
+                sections.map((section) =>
+                    section.type === "pair" ? (
+                        <section class={section.className}>
+                            {section.images.map((image) => (
+                                <img
+                                    src={image.src}
+                                    alt={image.alt}
+                                    class={image.className}
+                                />
+                            ))}
+                        </section>
+                    ) : (
+                        <section class="flex flex-col gap-20 md:flex-row md:justify-center md:gap-32">
+                            <div class="flex flex-col gap-20 md:gap-36">
+                                {section.leftImages.map((image) => (
+                                    <img
+                                        src={image.src}
+                                        alt={image.alt}
+                                        class={image.className}
+                                    />
+                                ))}
+                            </div>
+
+                            {section.rightImages.length > 0 && (
+                                <div class="flex flex-col gap-20 self-end md:gap-40 md:pt-44">
+                                    {section.rightImages.map((image) => (
+                                        <img
+                                            src={image.src}
+                                            alt={image.alt}
+                                            class={image.className}
+                                        />
+                                    ))}
+                                </div>
+                            )}
+                        </section>
+                    ),
+                )
+            }
+        </main>
+
+        <script>
+            const contactButton = document.querySelector("[data-contact-copy]");
+            const contactStatus = document.querySelector(
+                "[data-contact-status]",
+            );
+            let contactStatusTimeout;
+
+            contactButton?.addEventListener("click", async () => {
+                const email = contactButton.getAttribute("data-email");
+
+                if (!email) {
+                    return;
+                }
+
+                try {
+                    await navigator.clipboard.writeText(email);
+                    contactStatus?.classList.remove("opacity-0");
+                    contactStatus?.classList.add("opacity-100");
+
+                    window.clearTimeout(contactStatusTimeout);
+                    contactStatusTimeout = window.setTimeout(() => {
+                        contactStatus?.classList.remove("opacity-100");
+                        contactStatus?.classList.add("opacity-0");
+                    }, 1800);
+                } catch {
+                    window.location.href = `mailto:${email}`;
+                }
+            });
+        </script>
+    </body>
+</html>
