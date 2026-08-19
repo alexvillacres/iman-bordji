@@ -3,6 +3,6 @@
     "private": true,
     "scripts": {
       "dev": "pnpm --filter web dev",
-      "studio": "pnpm --filter studio dev"
+      "studio": "pnpm --dir studio dev"
     }
   }
