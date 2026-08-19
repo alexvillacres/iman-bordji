@@ -4,6 +4,13 @@ export const homePage = defineType({
   name: 'homePage',
   title: 'Home Page',
   type: 'document',
+  preview: {
+    prepare() {
+      return {
+        title: 'Home Page Gallery',
+      }
+    }
+  },
   fields: [
     defineField({
       name: 'images',
